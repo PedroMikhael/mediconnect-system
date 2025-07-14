@@ -1,43 +1,54 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { Heart, Eye, EyeOff } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Heart } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { loginService } from "../api/services/loginService"
+
+// --- CORREÇÃO APLICADA AQUI ---
+// Importa os serviços de login a partir dos nomes de arquivo corretos que você especificou.
+import { loginService as patientLoginService } from "../api/services/loginPatientService"
+import { loginService as doctorLoginService } from "../api/services/loginDoctorService"
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
 
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-  })
-
-  const handleLogin = async (e: React.FormEvent, userType: 'patient' | 'doctor') => {
-    e.preventDefault()
+  const handleLogin = async (userType: "patient" | "doctor") => {
     setIsLoading(true)
     setError("")
 
     try {
-      const response = await loginService.login(form.email, form.password)
-      
+      let response
+      if (userType === "patient") {
+        response = await patientLoginService.login(email, password)
+      } else {
+        response = await doctorLoginService.login(email, password)
+      }
+
+      // Se o login for bem-sucedido:
+      // 1. Salve o token e os dados do usuário
       localStorage.setItem("authToken", response.token)
-      localStorage.setItem("userId", response.id.toString())
+      localStorage.setItem("userId", String(response.id))
       localStorage.setItem("userType", userType)
-      
+
+      // 2. Redirecione para o painel apropriado
+      // (ajuste a rota "/dashboard" se necessário)
       router.push(`/${userType}/dashboard`)
-    } catch (err) {
-      setError("Email ou senha incorretos")
+
+    } catch (err: any) {
+      setError(err.message || "Falha no login. Verifique suas credenciais.")
     } finally {
       setIsLoading(false)
     }
@@ -53,117 +64,90 @@ export default function LoginPage() {
             </div>
             <h1 className="text-2xl font-bold text-blue-900">MediConnect</h1>
           </Link>
-          <h2 className="text-3xl font-bold text-gray-900">Entrar na sua conta</h2>
-          <p className="text-gray-600 mt-2">Acesse sua conta para continuar</p>
+          <h2 className="text-3xl font-bold text-blue-900">Acesse sua Conta</h2>
+          <p className="text-blue-600 mt-2">Que bom te ver de volta!</p>
         </div>
 
-        <Card className="shadow-xl">
+        <Card className="shadow-xl border-blue-300">
           <CardHeader>
-            <CardTitle>Login</CardTitle>
-            <CardDescription>Escolha o tipo de conta para fazer login</CardDescription>
+            <CardTitle className="text-blue-900">Login</CardTitle>
+            <CardDescription className="text-blue-600">
+              Selecione seu tipo de conta e insira suas credenciais.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="patient" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="patient">Paciente</TabsTrigger>
-                <TabsTrigger value="doctor">Médico</TabsTrigger>
+                <TabsTrigger
+                  value="patient"
+                  className="text-blue-700 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900"
+                >
+                  Sou Paciente
+                </TabsTrigger>
+                <TabsTrigger
+                  value="doctor"
+                  className="text-blue-700 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900"
+                >
+                  Sou Médico
+                </TabsTrigger>
               </TabsList>
 
               {error && (
-                <Alert className="mt-4 border-red-200 bg-red-50">
-                  <AlertDescription className="text-red-800">{error}</AlertDescription>
+                <Alert variant="destructive" className="mt-4">
+                  <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <TabsContent value="patient" className="space-y-4">
-                <form onSubmit={(e) => handleLogin(e, 'patient')} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-blue-700">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-blue-700">Senha</Label>
+                  <div className="relative">
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Sua senha"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       required
                     />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-blue-600"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
                   </div>
+                </div>
+              </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Sua senha"
-                        value={form.password}
-                        onChange={(e) => setForm({ ...form, password: e.target.value })}
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Entrando..." : "Entrar como Paciente"}
-                  </Button>
-                </form>
+              <TabsContent value="patient">
+                <Button onClick={() => handleLogin('patient')} className="w-full mt-6 bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                  {isLoading ? "Entrando..." : "Entrar como Paciente"}
+                </Button>
               </TabsContent>
-
-              <TabsContent value="doctor" className="space-y-4">
-                <form onSubmit={(e) => handleLogin(e, 'doctor')} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Sua senha"
-                        value={form.password}
-                        onChange={(e) => setForm({ ...form, password: e.target.value })}
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Entrando..." : "Entrar como Médico"}
-                  </Button>
-                </form>
+              <TabsContent value="doctor">
+                <Button onClick={() => handleLogin('doctor')} className="w-full mt-6 bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                  {isLoading ? "Entrando..." : "Entrar como Médico"}
+                </Button>
               </TabsContent>
             </Tabs>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-blue-600">
                 Não tem uma conta?{" "}
                 <Link href="/register" className="text-blue-600 hover:underline font-medium">
                   Cadastre-se aqui

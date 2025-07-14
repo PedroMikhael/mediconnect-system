@@ -1,23 +1,19 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, MapPin, Star, Plus, Search, Bell, User, LogOut, Heart } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { id } from "date-fns/locale"
 
 export default function PatientDashboard() {
   const router = useRouter()
-  const [patient, setPatient] = useState({
-    name: "João Silva",
-    age: 35,
-    healthPlan: "Unimed",
-    email: "joao.silva@email.com",
-    phone: "(11) 99999-9999",
-    initials: "JS",
-  })
+  const [patient, setPatient] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [upcomingAppointments, setUpcomingAppointments] = useState([
     {
@@ -64,18 +60,94 @@ export default function PatientDashboard() {
   ])
 
   useEffect(() => {
-    // Check if user is logged in
     const userType = localStorage.getItem("userType")
     if (userType !== "patient") {
       router.push("/login")
+      return
     }
+
+    async function fetchPatient() {
+      try {
+        const token = localStorage.getItem("authToken")
+        const id = localStorage.getItem("userId")
+        if (!token || !id) {
+          setError("Usuário não autenticado")
+          setLoading(false)
+          return
+        }
+        if (!token) {
+          setError("Usuário não autenticado")
+          setLoading(false)
+          return
+        }
+
+        const res = await fetch(`/api/patient/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+
+        if (res.status === 404) {
+          setError("Paciente não encontrado. Por favor, faça login novamente.")
+          setLoading(false)
+          return
+        }
+
+        if (!res.ok) {
+          throw new Error(`Erro ao buscar dados do paciente: ${res.statusText}`)
+        }
+
+        const data = await res.json()
+
+        setPatient({
+          name: data.name || "Nome não informado",
+          birthDate: data.birthDate || "Não informado",
+          healthPlan: data.healthPlan || "Não informado",
+          email: data.email || "Não informado",
+          initials: data.name
+            ? data.name
+                .split(" ")
+                .map((n: string) => n[0])
+                .join("")
+                .toUpperCase()
+            : "NA",
+        })
+
+        setLoading(false)
+      } catch (err: any) {
+        setError(err.message || "Erro desconhecido")
+        setLoading(false)
+      }
+    }
+
+    fetchPatient()
   }, [router])
 
   const handleLogout = () => {
     localStorage.removeItem("userType")
     localStorage.removeItem("userId")
+    localStorage.removeItem("authToken")
     router.push("/")
   }
+
+  // Calcula idade com base na data de nascimento
+ function calculateAge(birthDateStr: string) {
+  if (!birthDateStr || birthDateStr === "Não informado") return "Não informado"
+  const birthDate = new Date(birthDateStr)
+  const today = new Date()
+
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const monthDiff = today.getMonth() - birthDate.getMonth()
+  const dayDiff = today.getDate() - birthDate.getDate()
+
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+    age--
+  }
+
+  return age
+}
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -89,6 +161,10 @@ export default function PatientDashboard() {
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
+
+  if (loading) return <p className="text-center mt-8">Carregando dados do paciente...</p>
+  if (error) return <p className="text-center mt-8 text-red-600">Erro: {error}</p>
+  if (!patient) return <p className="text-center mt-8">Nenhum dado do paciente disponível.</p>
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
@@ -130,7 +206,9 @@ export default function PatientDashboard() {
                   <span className="text-white text-2xl font-bold">{patient.initials}</span>
                 </div>
                 <CardTitle className="text-gray-900">{patient.name}</CardTitle>
-                <CardDescription className="text-gray-600">{patient.age} anos</CardDescription>
+                <CardDescription className="text-gray-600">
+                  {calculateAge(patient.birthDate)} anos
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -144,8 +222,7 @@ export default function PatientDashboard() {
                   <p className="text-sm text-gray-600">{patient.email}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-700">Telefone</p>
-                  <p className="text-sm text-gray-600">{patient.phone}</p>
+              
                 </div>
                 <Button
                   variant="outline"

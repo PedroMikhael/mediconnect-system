@@ -1,4 +1,3 @@
-
 import { AxiosError } from 'axios'
 import request from '../request'
 
@@ -8,6 +7,7 @@ export type LoginResponse = {
 }
 
 export const loginService = {
+
   login: async (email: string, password: string): Promise<LoginResponse> => {
     try {
       const response = await request({
@@ -30,4 +30,3 @@ export const loginService = {
     }
   },
 }
-

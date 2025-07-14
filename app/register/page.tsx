@@ -1,19 +1,22 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { Heart, Eye, EyeOff } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Heart, Eye, EyeOff } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+
+// Importações dos serviços
+import { doctorService, type DoctorRegisterRequest } from "../api/services/doctorService"
+import { patientService, type PatientRegisterRequest } from "../api/services/patientService"
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -29,7 +32,8 @@ export default function RegisterPage() {
     confirmPassword: "",
     age: "",
     phone: "",
-    healthPlan: "",
+    healthPlan: "", // string simples, vazio se não escolher plano
+    birthDate: "", // Para data de nascimento
   })
 
   const [doctorForm, setDoctorForm] = useState({
@@ -37,11 +41,8 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    crm: "",
     specialty: "",
-    phone: "",
-    healthPlans: [] as string[],
-    description: "",
+    healthPlan: "", // string simples
   })
 
   const specialties = [
@@ -53,9 +54,32 @@ export default function RegisterPage() {
     "Neurologia",
     "Psiquiatria",
     "Clínico Geral",
+    "Endocrinologia",
+    "Oftalmologia",
+    "Urologia",
+    "Reumatologia",
+    "Gastroenterologia",
+    "Pneumologia",
   ]
 
-  const healthPlans = ["Unimed", "Bradesco Saúde", "SulAmérica", "Amil", "NotreDame"]
+  const healthPlans = [
+    "Unimed",
+    "Bradesco Saúde",
+    "SulAmérica",
+    "Amil",
+    "NotreDame Intermédica",
+    "Hapvida",
+    "São Francisco Saúde",
+    "Porto Seguro Saúde",
+    "Não tenho plano",
+  ]
+
+  const handlePatientHealthPlanChange = (value: string) => {
+    setPatientForm({
+      ...patientForm,
+      healthPlan: value === "Não tenho plano" ? "" : value,
+    })
+  }
 
   const handlePatientRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,29 +87,33 @@ export default function RegisterPage() {
     setError("")
     setSuccess("")
 
-    // Validation
     if (patientForm.password !== patientForm.confirmPassword) {
       setError("As senhas não coincidem")
       setIsLoading(false)
       return
     }
-
     if (patientForm.password.length < 6) {
       setError("A senha deve ter pelo menos 6 caracteres")
       setIsLoading(false)
       return
     }
 
-    // Mock registration - replace with actual API call
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate API call
-      setSuccess("Cadastro realizado com sucesso! Redirecionando...")
+    const dataToSubmit: PatientRegisterRequest = {
+      name: patientForm.name,
+      email: patientForm.email,
+      password: patientForm.password,
+      healthPlan: patientForm.healthPlan,
+      dateOfBirth: patientForm.birthDate,
+    }
 
+    try {
+      await patientService.register(dataToSubmit)
+      setSuccess("Cadastro realizado com sucesso! Redirecionando...")
       setTimeout(() => {
         router.push("/login")
       }, 2000)
-    } catch (err) {
-      setError("Erro ao criar conta. Tente novamente.")
+    } catch (err: any) {
+      setError(err.message || "Erro ao criar conta. Tente novamente.")
     } finally {
       setIsLoading(false)
     }
@@ -97,47 +125,41 @@ export default function RegisterPage() {
     setError("")
     setSuccess("")
 
-    // Validation
     if (doctorForm.password !== doctorForm.confirmPassword) {
       setError("As senhas não coincidem")
       setIsLoading(false)
       return
     }
-
     if (doctorForm.password.length < 6) {
       setError("A senha deve ter pelo menos 6 caracteres")
       setIsLoading(false)
       return
     }
 
-    // Mock registration - replace with actual API call
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate API call
-      setSuccess("Cadastro realizado com sucesso! Aguarde aprovação. Redirecionando...")
+    const dataToSubmit: DoctorRegisterRequest = {
+      name: doctorForm.name,
+      email: doctorForm.email,
+      password: doctorForm.password,
+      speciality: doctorForm.specialty,
+      healthPlan: doctorForm.healthPlan,
+    }
 
+    try {
+      await doctorService.register(dataToSubmit)
+      setSuccess("Cadastro realizado com sucesso! Aguarde aprovação. Redirecionando...")
       setTimeout(() => {
         router.push("/login")
       }, 2000)
-    } catch (err) {
-      setError("Erro ao criar conta. Tente novamente.")
+    } catch (err: any) {
+      setError(err.message || "Erro ao criar conta. Tente novamente.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleHealthPlanToggle = (plan: string) => {
-    setDoctorForm((prev) => ({
-      ...prev,
-      healthPlans: prev.healthPlans.includes(plan)
-        ? prev.healthPlans.filter((p) => p !== plan)
-        : [...prev.healthPlans, plan],
-    }))
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-25 to-white flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-        {/* Header */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center space-x-2 mb-4">
             <div className="bg-blue-600 p-2 rounded-lg">
@@ -176,20 +198,18 @@ export default function RegisterPage() {
                   <AlertDescription className="text-red-800">{error}</AlertDescription>
                 </Alert>
               )}
-
               {success && (
                 <Alert className="mt-4 border-green-200 bg-green-50">
                   <AlertDescription className="text-green-800">{success}</AlertDescription>
                 </Alert>
               )}
 
-              <TabsContent value="patient" className="space-y-4">
+              {/* FORMULÁRIO DO PACIENTE */}
+              <TabsContent value="patient" className="space-y-4 pt-4">
                 <form onSubmit={handlePatientRegister} className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="patient-name" className="text-blue-700">
-                        Nome Completo
-                      </Label>
+                      <Label htmlFor="patient-name" className="text-blue-700">Nome Completo</Label>
                       <Input
                         id="patient-name"
                         placeholder="Seu nome completo"
@@ -198,26 +218,10 @@ export default function RegisterPage() {
                         required
                       />
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="patient-age" className="text-blue-700">
-                        Idade
-                      </Label>
-                      <Input
-                        id="patient-age"
-                        type="number"
-                        placeholder="Sua idade"
-                        value={patientForm.age}
-                        onChange={(e) => setPatientForm({ ...patientForm, age: e.target.value })}
-                        required
-                      />
-                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="patient-email" className="text-blue-700">
-                      Email
-                    </Label>
+                    <Label htmlFor="patient-email" className="text-blue-700">Email</Label>
                     <Input
                       id="patient-email"
                       type="email"
@@ -229,47 +233,44 @@ export default function RegisterPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="patient-phone" className="text-blue-700">
-                      Telefone
-                    </Label>
+                    <Label htmlFor="patient-birthDate" className="text-blue-700">Data de Nascimento</Label>
                     <Input
-                      id="patient-phone"
-                      placeholder="(11) 99999-9999"
-                      value={patientForm.phone}
-                      onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })}
+                      id="patient-birthDate"
+                      type="date"
+                      value={patientForm.birthDate || ""}
+                      onChange={(e) => setPatientForm({ ...patientForm, birthDate: e.target.value })}
                       required
+                      className="border-2 border-blue-100 focus:border-blue-300"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="patient-health-plan" className="text-blue-700">
-                      Plano de Saúde
-                    </Label>
+                    <Label htmlFor="patient-health-plan" className="text-blue-700">Plano de Saúde</Label>
                     <Select
-                      value={patientForm.healthPlan}
-                      onValueChange={(value) => setPatientForm({ ...patientForm, healthPlan: value })}
+                      value={patientForm.healthPlan || "none"}
+                      onValueChange={handlePatientHealthPlanChange}
                     >
                       <SelectTrigger className="bg-blue-50 border-blue-300">
                         <SelectValue placeholder="Selecione seu plano (opcional)" />
                       </SelectTrigger>
                       <SelectContent className="bg-blue-50 border-blue-300">
                         <SelectItem value="none" className="text-blue-700 hover:bg-blue-100">
-                          Não tenho plano
+                          Nenhum
                         </SelectItem>
-                        {healthPlans.map((plan) => (
-                          <SelectItem key={plan} value={plan} className="text-blue-700 hover:bg-blue-100">
-                            {plan}
-                          </SelectItem>
-                        ))}
+                        {healthPlans
+                          .filter((plan) => plan !== "Não tenho plano")
+                          .map((plan) => (
+                            <SelectItem key={plan} value={plan} className="text-blue-700 hover:bg-blue-100">
+                              {plan}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="patient-password" className="text-blue-700">
-                        Senha
-                      </Label>
+                      <Label htmlFor="patient-password" className="text-blue-700">Senha</Label>
                       <div className="relative">
                         <Input
                           id="patient-password"
@@ -290,11 +291,8 @@ export default function RegisterPage() {
                         </Button>
                       </div>
                     </div>
-
                     <div className="space-y-2">
-                      <Label htmlFor="patient-confirm-password" className="text-blue-700">
-                        Confirmar Senha
-                      </Label>
+                      <Label htmlFor="patient-confirm-password" className="text-blue-700">Confirmar Senha</Label>
                       <Input
                         id="patient-confirm-password"
                         type={showPassword ? "text" : "password"}
@@ -316,43 +314,26 @@ export default function RegisterPage() {
                 </form>
               </TabsContent>
 
-              <TabsContent value="doctor" className="space-y-4">
+              {/* FORMULÁRIO DO MÉDICO */}
+              <TabsContent value="doctor" className="space-y-4 pt-4">
                 <form onSubmit={handleDoctorRegister} className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="doctor-name" className="text-blue-700">
-                        Nome Completo
-                      </Label>
-                      <Input
-                        id="doctor-name"
-                        placeholder="Dr(a). Seu nome completo"
-                        value={doctorForm.name}
-                        onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="doctor-crm" className="text-blue-700">
-                        CRM
-                      </Label>
-                      <Input
-                        id="doctor-crm"
-                        placeholder="CRM/UF 123456"
-                        value={doctorForm.crm}
-                        onChange={(e) => setDoctorForm({ ...doctorForm, crm: e.target.value })}
-                        required
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="doctor-name" className="text-blue-700">Nome Completo</Label>
+                    <Input
+                      id="doctor-name"
+                      placeholder="Dr(a). Seu nome completo"
+                      value={doctorForm.name}
+                      onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })}
+                      required
+                    />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="doctor-specialty" className="text-blue-700">
-                      Especialidade
-                    </Label>
+                    <Label htmlFor="doctor-specialty" className="text-blue-700">Especialidade</Label>
                     <Select
                       value={doctorForm.specialty}
                       onValueChange={(value) => setDoctorForm({ ...doctorForm, specialty: value })}
+                      required
                     >
                       <SelectTrigger className="bg-blue-50 border-blue-300">
                         <SelectValue placeholder="Selecione sua especialidade" />
@@ -367,71 +348,42 @@ export default function RegisterPage() {
                     </Select>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="doctor-email" className="text-blue-700">
-                        Email
-                      </Label>
-                      <Input
-                        id="doctor-email"
-                        type="email"
-                        placeholder="seu@email.com"
-                        value={doctorForm.email}
-                        onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="doctor-phone" className="text-blue-700">
-                        Telefone
-                      </Label>
-                      <Input
-                        id="doctor-phone"
-                        placeholder="(11) 99999-9999"
-                        value={doctorForm.phone}
-                        onChange={(e) => setDoctorForm({ ...doctorForm, phone: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-
                   <div className="space-y-2">
-                    <Label className="text-blue-700">Planos de Saúde Aceitos</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {healthPlans.map((plan) => (
-                        <label key={plan} className="flex items-center space-x-2 cursor-pointer text-blue-700">
-                          <input
-                            type="checkbox"
-                            checked={doctorForm.healthPlans.includes(plan)}
-                            onChange={() => handleHealthPlanToggle(plan)}
-                            className="rounded border-blue-300 focus:ring-blue-500"
-                          />
-                          <span className="text-sm">{plan}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="doctor-description" className="text-blue-700">
-                      Descrição Profissional
-                    </Label>
-                    <Textarea
-                      id="doctor-description"
-                      placeholder="Descreva sua experiência e especialidades..."
-                      value={doctorForm.description}
-                      onChange={(e) => setDoctorForm({ ...doctorForm, description: e.target.value })}
-                      rows={3}
-                      className="border-blue-300 focus-visible:ring-blue-500"
+                    <Label htmlFor="doctor-email" className="text-blue-700">Email</Label>
+                    <Input
+                      id="doctor-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={doctorForm.email}
+                      onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })}
+                      required
                     />
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="doctor-health-plan" className="text-blue-700">Plano de Saúde Atendido</Label>
+                    <Select
+                      value={doctorForm.healthPlan}
+                      onValueChange={(value) => setDoctorForm({ ...doctorForm, healthPlan: value })}
+                    >
+                      <SelectTrigger className="bg-blue-50 border-blue-300">
+                        <SelectValue placeholder="Selecione o principal plano atendido" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-blue-50 border-blue-300">
+                        {healthPlans
+                          .filter((plan) => plan !== "Não tenho plano")
+                          .map((plan) => (
+                            <SelectItem key={plan} value={plan} className="text-blue-700 hover:bg-blue-100">
+                              {plan}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="doctor-password" className="text-blue-700">
-                        Senha
-                      </Label>
+                      <Label htmlFor="doctor-password" className="text-blue-700">Senha</Label>
                       <div className="relative">
                         <Input
                           id="doctor-password"
@@ -452,11 +404,8 @@ export default function RegisterPage() {
                         </Button>
                       </div>
                     </div>
-
                     <div className="space-y-2">
-                      <Label htmlFor="doctor-confirm-password" className="text-blue-700">
-                        Confirmar Senha
-                      </Label>
+                      <Label htmlFor="doctor-confirm-password" className="text-blue-700">Confirmar Senha</Label>
                       <Input
                         id="doctor-confirm-password"
                         type={showPassword ? "text" : "password"}
@@ -476,8 +425,7 @@ export default function RegisterPage() {
                     {isLoading ? "Criando conta..." : "Criar Conta de Médico"}
                   </Button>
                 </form>
-
-                <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+                <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mt-4">
                   <p className="font-medium">Nota:</p>
                   <p>Contas de médicos passam por um processo de verificação antes da aprovação.</p>
                 </div>
