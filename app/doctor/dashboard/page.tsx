@@ -38,14 +38,12 @@ export default function DoctorDashboard() {
   // Formata data string ISO para "dd/mm/aaaa"
   const formatDateString = (dateStr: string | null) => {
     if (!dateStr) return "Data N/I"
-    const parts = dateStr.split("-").map(Number) // [2025, 7, 16]
+    const parts = dateStr.split("-").map(Number)
     if (parts.length !== 3) return "Data Inválida"
 
-    // Note: mês é zero-based no JS Date (0 = janeiro)
     const dateObj = new Date(parts[0], parts[1] - 1, parts[2])
     return dateObj.toLocaleDateString("pt-BR")
   }
-
 
   // Função para pegar cor do status
   const getStatusColor = (status: string, waitingList: boolean) => {
@@ -60,6 +58,28 @@ export default function DoctorDashboard() {
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
+  }
+
+  // Componente para renderizar estrelas
+  const renderStars = (rating: number) => {
+    const fullStars = Math.floor(rating)
+    const hasHalfStar = rating % 1 >= 0.5
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0)
+
+    return (
+      <div className="flex items-center">
+        {[...Array(fullStars)].map((_, i) => (
+          <Star key={`full-${i}`} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+        ))}
+        {hasHalfStar && (
+          <Star key="half" className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+        )}
+        {[...Array(emptyStars)].map((_, i) => (
+          <Star key={`empty-${i}`} className="h-4 w-4 text-yellow-400" />
+        ))}
+        <span className="ml-1 text-sm font-medium text-gray-700">{rating.toFixed(1)}</span>
+      </div>
+    )
   }
 
   useEffect(() => {
@@ -103,8 +123,7 @@ export default function DoctorDashboard() {
           name: data.name || "Nome não informado",
           specialty: data.speciality || "Especialidade não informada",
           email: data.email || "Email não informado",
-          rating: data.rating ?? 0,
-          totalReviews: data.totalReviews ?? 0,
+          rating: data.averageRating ?? 0,
           healthPlan: data.healthPlan || "Plano não informado",
           initials: data.name
             ? data.name
@@ -175,13 +194,12 @@ export default function DoctorDashboard() {
           })
         )
 
-        // Filtro que remove consultas canceladas
-const isActive = (a: any) =>
-  a.status?.toLowerCase() !== "cancelado" &&
-  a.status?.toLowerCase() !== "cancelled"
+        const isActive = (a: any) =>
+          a.status?.toLowerCase() !== "cancelado" &&
+          a.status?.toLowerCase() !== "cancelled"
 
-setTodayAppointments(enriched.filter((a) => isSameDate(a.date) && isActive(a)))
-setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a)))
+        setTodayAppointments(enriched.filter((a) => isSameDate(a.date) && isActive(a)))
+        setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a)))
 
       } catch (err) {
         console.error("Erro ao buscar consultas:", err)
@@ -245,12 +263,9 @@ setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a
                 <CardDescription className="text-blue-600 font-medium">{doctor.specialty}</CardDescription>
 
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="flex items-center">
-                      <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                      <span className="ml-1 font-semibold text-gray-900">{doctor.rating}</span>
-                    </div>
-                    <span className="text-gray-600">({doctor.totalReviews} avaliações)</span>
+                  {/* Avaliação com estrelas */}
+                  <div className="flex items-center justify-center">
+                    {renderStars(doctor.rating)}
                   </div>
 
                   <div>
@@ -261,7 +276,7 @@ setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Email</p>
+                    <p className="text-sm font-medium text-gray-700">Email:</p>
                     <p className="text-sm text-gray-600">{doctor.email}</p>
                   </div>
 
@@ -350,8 +365,11 @@ setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a
                               <Button
                                 size="sm"
                                 className="bg-green-600 hover:bg-green-700 text-white"
+                                asChild
                               >
-                                Realizar Consulta
+                                <Link href={`/doctor/completeAppointment/${appointment.id}`}>
+                                  Realizar Consulta
+                                </Link>
                               </Button>
                             )}
                           </div>
@@ -421,20 +439,6 @@ setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a
                             >
                               {appointment.waitingList ? "Lista de Espera" : "Confirmado"}
                             </Badge>
-                          </div>
-                          <div className="mt-3 flex space-x-2">
-                          {!appointment.waitingList && (
-  <Button
-    size="sm"
-    className="bg-green-600 hover:bg-green-700 text-white"
-    asChild
-  >
-    <Link href={`/doctor/completeAppointment/${appointment.id}`}>
-      Realizar Consulta
-    </Link>
-  </Button>
-)}
-
                           </div>
                         </div>
                       )

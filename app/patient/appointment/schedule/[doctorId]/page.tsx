@@ -29,12 +29,10 @@ interface Doctor {
   id: string
   name: string
   speciality: string
-  rating: number
-  reviews: number
+  averageRating: number
   healthPlan: string
   location: string
   initials: string
-  consultationFee: number
 }
 
 export default function ScheduleAppointment() {
@@ -51,12 +49,11 @@ export default function ScheduleAppointment() {
   const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
+  const [availableTimes, setAvailableTimes] = useState<string[]>([])
+  const [hasAvailability, setHasAvailability] = useState(true)
 
   // Estado para patientId, carregado do localStorage somente no cliente
   const [patientId, setPatientId] = useState<string | null>(null)
-
-  // Horários e tipos de consulta disponíveis (hardcoded, pode melhorar puxando do backend)
-  const availableTimes = ["09:00", "12:00", "15:00"]
 
   const appointmentTypes = [
     { value: "consulta", label: "Consulta" },
@@ -65,11 +62,33 @@ export default function ScheduleAppointment() {
     { value: "preventiva", label: "Consulta Preventiva" },
   ]
 
+  // Componente para renderizar estrelas
+  const renderStars = (rating: number) => {
+    const fullStars = Math.floor(rating)
+    const hasHalfStar = rating % 1 >= 0.5
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0)
+
+    return (
+      <div className="flex items-center">
+        {[...Array(fullStars)].map((_, i) => (
+          <Star key={`full-${i}`} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+        ))}
+        {hasHalfStar && (
+          <Star key="half" className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+        )}
+        {[...Array(emptyStars)].map((_, i) => (
+          <Star key={`empty-${i}`} className="h-5 w-5 text-yellow-400" />
+        ))}
+        <span className="ml-1 font-semibold text-gray-700">{rating.toFixed(1)}</span>
+      </div>
+    )
+  }
+
   // Proteção: verifica se usuário está logado e é paciente
   useEffect(() => {
     const token = localStorage.getItem("authToken")
     const userType = localStorage.getItem("userType")
-    const id = localStorage.getItem("userId") // Pega id do paciente
+    const id = localStorage.getItem("userId")
 
     if (!token || userType !== "patient" || !id) {
       router.push("/login")
@@ -113,24 +132,61 @@ export default function ScheduleAppointment() {
     fetchDoctor()
   }, [doctorId])
 
+  // Busca horários disponíveis quando a data muda
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAvailableTimes(selectedDate)
+      setSelectedTime("")
+    }
+  }, [selectedDate])
+
+  const fetchAvailableTimes = async (date: Date) => {
+    try {
+      const token = localStorage.getItem("authToken")
+      if (!token) return
+
+      const response = await fetch("/api/appointments/available-times", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          doctorId: Number(doctorId),
+          date: date.toISOString().split("T")[0],
+        }),
+      })
+
+      if (!response.ok) throw new Error("Erro ao buscar horários disponíveis")
+
+      const data = await response.json()
+      setAvailableTimes(data.availableTimes)
+      setHasAvailability(data.hasAvailability)
+    } catch (error) {
+      console.error("Error fetching available times:", error)
+      setAvailableTimes([])
+      setHasAvailability(false)
+    }
+  }
+
   const handleSchedule = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
     setSuccess("")
-  
-    if (!selectedDate || !selectedTime) {
+
+    if (!selectedDate || (!selectedTime && hasAvailability)) {
       setError("Por favor, preencha todos os campos obrigatórios")
       setIsLoading(false)
       return
     }
-  
+
     if (!patientId) {
       setError("Paciente não identificado. Faça login novamente.")
       setIsLoading(false)
       return
     }
-  
+
     try {
       const token = localStorage.getItem("authToken")
       if (!token) {
@@ -138,15 +194,15 @@ export default function ScheduleAppointment() {
         setIsLoading(false)
         return
       }
-  
+
       const body = {
         doctorId: Number(doctorId),
         patientId: Number(patientId),
-        date: selectedDate.toISOString().split("T")[0], // yyyy-mm-dd
-        time: selectedTime, // ex: "09:00"
-        acceptWaitingList: false,
+        date: selectedDate.toISOString().split("T")[0],
+        time: hasAvailability ? selectedTime.split(":")[0] + ":" + selectedTime.split(":")[1] : null,
+        acceptWaitingList: !hasAvailability,
       }
-  
+
       const response = await fetch("/api/appointments", {
         method: "POST",
         headers: {
@@ -155,17 +211,16 @@ export default function ScheduleAppointment() {
         },
         body: JSON.stringify(body),
       })
-  
+
       if (response.status === 201) {
         setSuccess(
-          "Consulta agendada com sucesso! Você receberá uma confirmação por email."
+          hasAvailability
+            ? "Consulta agendada com sucesso!"
+            : "Você foi adicionado à lista de espera. Você será notificado quando um horário ficar disponível."
         )
         setTimeout(() => {
           router.push("/patient/dashboard")
         }, 3000)
-      } else if (response.status === 409) {
-        const data = await safeParseJson(response)
-        setError(data?.message || "Conflito: horário já ocupado.")
       } else {
         const data = await safeParseJson(response)
         setError(data?.message || "Erro ao agendar consulta.")
@@ -176,8 +231,7 @@ export default function ScheduleAppointment() {
       setIsLoading(false)
     }
   }
-  
-  // Função para evitar erro de JSON vazio
+
   async function safeParseJson(response: Response) {
     try {
       return await response.json()
@@ -185,7 +239,6 @@ export default function ScheduleAppointment() {
       return null
     }
   }
-  
 
   // Desabilita datas passadas
   const isDateDisabled = (date: Date) => {
@@ -241,16 +294,9 @@ export default function ScheduleAppointment() {
               <CardContent className="space-y-4">
                 {doctor && (
                   <>
-                    <div className="flex items-center justify-center space-x-2">
-                      <div className="flex items-center">
-                        <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                        <span className="ml-1 font-semibold text-gray-900">
-                          {doctor.rating}
-                        </span>
-                      </div>
-                      <span className="text-gray-600">
-                        ({doctor.reviews} avaliações)
-                      </span>
+                    {/* Avaliação com estrelas */}
+                    <div className="flex items-center justify-center">
+                      {renderStars(doctor.averageRating || 0)}
                     </div>
 
                     <div className="space-y-2">
@@ -264,11 +310,8 @@ export default function ScheduleAppointment() {
 
                     <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
                       <p className="text-sm text-gray-700 mb-2">Valor da consulta:</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        R$ {doctor.consultationFee}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        *Valor pode variar conforme plano de saúde
+                      <p className="text-sm text-gray-600">
+                        *O valor será definido pelo médico após a consulta, caso seu plano de saúde não seja compatível
                       </p>
                     </div>
                   </>
@@ -322,21 +365,36 @@ export default function ScheduleAppointment() {
                         <h3 className="text-lg font-semibold text-gray-900">
                           Horário Disponível
                         </h3>
-                        <Select value={selectedTime} onValueChange={setSelectedTime}>
+                        <Select
+                          value={selectedTime}
+                          onValueChange={setSelectedTime}
+                          disabled={!hasAvailability}
+                        >
                           <SelectTrigger className="border-2 border-blue-100 focus:border-blue-300">
-                            <SelectValue placeholder="Selecione um horário" />
+                            <SelectValue placeholder={
+                              hasAvailability
+                                ? "Selecione um horário"
+                                : "Nenhum horário disponível - Lista de espera"
+                            } />
                           </SelectTrigger>
-                          <SelectContent>
-                            {availableTimes.map((time) => (
-                              <SelectItem key={time} value={time}>
-                                <div className="flex items-center">
-                                  <Clock className="h-4 w-4 mr-2 text-blue-600" />
-                                  {time}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
+                          {hasAvailability && (
+                            <SelectContent>
+                              {availableTimes.map((time) => (
+                                <SelectItem key={time} value={time}>
+                                  <div className="flex items-center">
+                                    <Clock className="h-4 w-4 mr-2 text-blue-600" />
+                                    {time.split(":")[0] + ":" + time.split(":")[1]}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          )}
                         </Select>
+                        {!hasAvailability && (
+                          <p className="text-sm text-yellow-600 mt-2">
+                            Não há horários disponíveis para esta data. Ao confirmar, você será adicionado à lista de espera.
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-3">
@@ -373,16 +431,23 @@ export default function ScheduleAppointment() {
                   </div>
 
                   {/* Summary */}
-                  {selectedDate && selectedTime && appointmentType && (
+                  {selectedDate && (hasAvailability ? selectedTime : true) && appointmentType && (
                     <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border-2 border-blue-100">
                       <h4 className="font-semibold text-gray-900 mb-2">Resumo da Consulta:</h4>
                       <div className="space-y-1 text-sm text-gray-700">
                         <p>
                           <strong>Data:</strong> {selectedDate.toLocaleDateString("pt-BR")}
                         </p>
-                        <p>
-                          <strong>Horário:</strong> {selectedTime}
-                        </p>
+                        {hasAvailability && (
+                          <p>
+                            <strong>Horário:</strong> {selectedTime}
+                          </p>
+                        )}
+                        {!hasAvailability && (
+                          <p>
+                            <strong>Situação:</strong> Lista de espera
+                          </p>
+                        )}
                         <p>
                           <strong>Tipo:</strong>{" "}
                           {appointmentTypes.find((t) => t.value === appointmentType)?.label}
@@ -399,10 +464,14 @@ export default function ScheduleAppointment() {
                   <div className="flex justify-end">
                     <Button
                       type="submit"
-                      disabled={isLoading || !selectedDate || !selectedTime || !appointmentType}
+                      disabled={isLoading || !selectedDate || (hasAvailability && !selectedTime) || !appointmentType}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      {isLoading ? "Agendando..." : "Agendar Consulta"}
+                      {isLoading
+                        ? "Processando..."
+                        : hasAvailability
+                          ? "Agendar Consulta"
+                          : "Entrar na Lista de Espera"}
                     </Button>
                   </div>
                 </form>

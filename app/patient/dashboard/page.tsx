@@ -258,9 +258,7 @@ export default function PatientDashboard() {
                             <Badge className={statusColor}>{status}</Badge>
                           </div>
                           <div className="mt-3 flex space-x-2">
-                            <Button size="sm" variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
-                              Reagendar
-                            </Button>
+                            
                             <Button
                               size="sm"
                               variant="outline"

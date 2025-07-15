@@ -56,12 +56,14 @@ export default function DoctorProfile() {
   ]
 
   const healthPlansOptions = [
-    "Unimed",
+        "Unimed",
     "Bradesco Saúde",
     "SulAmérica",
     "Amil",
-    "NotreDame",
-    "Hapvida"
+    "NotreDame Intermédica",
+    "Hapvida",
+    "São Francisco Saúde",
+    "Porto Seguro Saúde",
   ]
 
   useEffect(() => {
