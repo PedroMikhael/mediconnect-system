@@ -14,28 +14,53 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [todayAppointments, setTodayAppointments] = useState([
-    {
-      id: 1,
-      patient: "João Silva",
-      age: 35,
-      time: "09:00",
-      type: "Consulta",
-      status: "confirmado",
-      healthPlan: "Unimed",
-      patientInitials: "JS",
-    },
-    {
-      id: 2,
-      patient: "Maria Santos",
-      age: 42,
-      time: "10:30",
-      type: "Retorno",
-      status: "confirmado",
-      healthPlan: "Bradesco Saúde",
-      patientInitials: "MS",
-    },
-  ])
+  const [todayAppointments, setTodayAppointments] = useState<any[]>([])
+  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
+
+  // Função para calcular idade
+  function calculateAge(dateOfBirth: string | null): number | string {
+    if (!dateOfBirth) return "N/I"
+    const birth = new Date(dateOfBirth)
+    const today = new Date()
+    let age = today.getFullYear() - birth.getFullYear()
+    const m = today.getMonth() - birth.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+    return age
+  }
+
+  // Formata hora string "HH:mm:ss" para "HH:mm"
+  const formatTimeString = (timeStr: string | null) => {
+    if (!timeStr) return "00:00"
+    const [hour, minute] = timeStr.split(":")
+    return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`
+  }
+
+  // Formata data string ISO para "dd/mm/aaaa"
+  const formatDateString = (dateStr: string | null) => {
+    if (!dateStr) return "Data N/I"
+    const parts = dateStr.split("-").map(Number) // [2025, 7, 16]
+    if (parts.length !== 3) return "Data Inválida"
+
+    // Note: mês é zero-based no JS Date (0 = janeiro)
+    const dateObj = new Date(parts[0], parts[1] - 1, parts[2])
+    return dateObj.toLocaleDateString("pt-BR")
+  }
+
+
+  // Função para pegar cor do status
+  const getStatusColor = (status: string, waitingList: boolean) => {
+    if (waitingList) return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    switch (status.toLowerCase()) {
+      case "confirmado":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "pendente":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "cancelado":
+        return "bg-red-100 text-red-800 border-red-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
 
   useEffect(() => {
     const userType = localStorage.getItem("userType")
@@ -54,6 +79,7 @@ export default function DoctorDashboard() {
           return
         }
 
+        // Busca dados do médico
         const res = await fetch(`/api/doctor/${id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -75,24 +101,90 @@ export default function DoctorDashboard() {
 
         setDoctor({
           name: data.name || "Nome não informado",
-          specialty: data.speciality || "Especialidade não informada", // <- alterado aqui
+          specialty: data.speciality || "Especialidade não informada",
           email: data.email || "Email não informado",
           rating: data.rating ?? 0,
           totalReviews: data.totalReviews ?? 0,
           healthPlan: data.healthPlan || "Plano não informado",
           initials: data.name
             ? data.name
-                .split(" ")
-                .map((n: string) => n[0])
-                .join("")
-                .toUpperCase()
+              .split(" ")
+              .map((n: string) => n[0])
+              .join("")
+              .toUpperCase()
             : "MD",
+          id,
         })
 
+        await fetchAppointments(id, token)
         setLoading(false)
       } catch (err: any) {
         setError(err.message || "Erro desconhecido")
         setLoading(false)
+      }
+    }
+
+    async function fetchAppointments(doctorId: string, token: string) {
+      try {
+        const res = await fetch(`/api/appointments/doctor/${doctorId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+
+        if (!res.ok) throw new Error("Erro ao buscar consultas do médico")
+        const appointments = await res.json()
+
+        const today = new Date()
+        const isSameDate = (dateStr: string) => {
+          if (!dateStr) return false
+          const [year, month, day] = dateStr.split("-").map(Number)
+          return (
+            year === today.getFullYear() &&
+            month === today.getMonth() + 1 &&
+            day === today.getDate()
+          )
+        }
+
+        const enriched = await Promise.all(
+          appointments.map(async (appointment: any) => {
+            let patientDob = null
+            let patientHealthPlan = "Não informado"
+
+            try {
+              const patientRes = await fetch(`/api/patient/${appointment.patientId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+              if (patientRes.ok) {
+                const patientData = await patientRes.json()
+                patientDob = patientData.dateOfBirth
+                patientHealthPlan = patientData.healthPlan || "Não informado"
+              }
+            } catch { }
+
+            return {
+              ...appointment,
+              patientAge: calculateAge(patientDob),
+              patientHealthPlan,
+              patientInitials: appointment.patientName
+                ? appointment.patientName
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .join("")
+                  .toUpperCase()
+                : "PN",
+            }
+          })
+        )
+
+        // Filtro que remove consultas canceladas
+const isActive = (a: any) =>
+  a.status?.toLowerCase() !== "cancelado" &&
+  a.status?.toLowerCase() !== "cancelled"
+
+setTodayAppointments(enriched.filter((a) => isSameDate(a.date) && isActive(a)))
+setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a)))
+
+      } catch (err) {
+        console.error("Erro ao buscar consultas:", err)
       }
     }
 
@@ -104,19 +196,6 @@ export default function DoctorDashboard() {
     localStorage.removeItem("userId")
     localStorage.removeItem("authToken")
     router.push("/")
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmado":
-        return "bg-green-100 text-green-800 border-green-200"
-      case "pendente":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "cancelado":
-        return "bg-red-100 text-red-800 border-red-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
-    }
   }
 
   if (loading) return <p className="text-center mt-8">Carregando dados do médico...</p>
@@ -208,6 +287,7 @@ export default function DoctorDashboard() {
               <p className="text-blue-100">Gerencie sua agenda e acompanhe seus pacientes.</p>
             </div>
 
+            {/* Consultas de Hoje */}
             <Card className="shadow-xl border-2 border-blue-100">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
                 <CardTitle className="flex items-center text-gray-900">
@@ -219,67 +299,149 @@ export default function DoctorDashboard() {
               <CardContent>
                 {todayAppointments.length > 0 ? (
                   <div className="space-y-4">
-                    {todayAppointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="border-2 border-blue-100 rounded-lg p-4 hover:bg-blue-50 transition-colors"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center">
-                              <span className="text-white font-bold text-sm">{appointment.patientInitials}</span>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <h4 className="font-semibold text-gray-900">{appointment.patient}</h4>
-                                <Badge variant="outline" className="border-blue-200 text-blue-600">
-                                  {appointment.age} anos
-                                </Badge>
-                                <Badge variant="outline" className="border-blue-300 text-blue-700">
-                                  {appointment.type}
-                                </Badge>
+                    {todayAppointments.map((appointment) => {
+                      const formattedTime = formatTimeString(appointment.time)
+                      const formattedDate = formatDateString(appointment.date)
+
+                      return (
+                        <div
+                          key={appointment.id}
+                          className="border-2 border-blue-100 rounded-lg p-4 hover:bg-blue-50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">{appointment.patientInitials}</span>
                               </div>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <div className="flex items-center">
-                                  <Clock className="h-4 w-4 mr-1" />
-                                  {appointment.time}
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-2">
+                                  <h4 className="font-semibold text-gray-900">{appointment.patientName}</h4>
+                                  <Badge variant="outline" className="border-blue-200 text-blue-600">
+                                    {appointment.patientAge} anos
+                                  </Badge>
+                                  <Badge variant="outline" className="border-blue-300 text-blue-700">
+                                    {appointment.type || "Consulta"}
+                                  </Badge>
                                 </div>
-                                <div className="flex items-center">
-                                  <Star className="h-4 w-4 mr-1" />
-                                  {appointment.healthPlan}
+                                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                  <div className="flex items-center">
+                                    <Calendar className="h-4 w-4 mr-1" />
+                                    {formattedDate}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <Clock className="h-4 w-4 mr-1" />
+                                    {formattedTime}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <Star className="h-4 w-4 mr-1" />
+                                    {appointment.patientHealthPlan}
+                                  </div>
                                 </div>
                               </div>
                             </div>
+                            <Badge
+                              className={getStatusColor(appointment.status, appointment.waitingList)}
+                            >
+                              {appointment.waitingList ? "Lista de Espera" : "Confirmado"}
+                            </Badge>
                           </div>
-                          <Badge className={getStatusColor(appointment.status)}>{appointment.status}</Badge>
+                          <div className="mt-3 flex space-x-2">
+                            {!appointment.waitingList && (
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                Realizar Consulta
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="mt-3 flex space-x-2">
-                          <Button
-                            size="sm"
-                            className="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900"
-                          >
-                            Iniciar Consulta
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent"
-                          >
-                            Ver Histórico
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-gray-200 text-gray-600 hover:bg-gray-50 bg-transparent"
-                          >
-                            Reagendar
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <p className="text-center py-8 text-gray-500">Nenhuma consulta agendada para hoje</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Próximas Consultas */}
+            <Card className="shadow-xl border-2 border-blue-100">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
+                <CardTitle className="flex items-center text-gray-900">
+                  <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+                  Próximas Consultas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {upcomingAppointments.length > 0 ? (
+                  <div className="space-y-4">
+                    {upcomingAppointments.map((appointment) => {
+                      const formattedDate = formatDateString(appointment.date)
+                      const formattedTime = formatTimeString(appointment.time)
+
+                      return (
+                        <div
+                          key={appointment.id}
+                          className="border-2 border-blue-100 rounded-lg p-4 hover:bg-blue-50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">{appointment.patientInitials}</span>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-2">
+                                  <h4 className="font-semibold text-gray-900">{appointment.patientName}</h4>
+                                  <Badge variant="outline" className="border-blue-200 text-blue-600">
+                                    {appointment.patientAge} anos
+                                  </Badge>
+                                  <Badge variant="outline" className="border-blue-300 text-blue-700">
+                                    {appointment.type || "Consulta"}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                  <div className="flex items-center">
+                                    <Calendar className="h-4 w-4 mr-1" />
+                                    {formattedDate}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <Clock className="h-4 w-4 mr-1" />
+                                    {formattedTime}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <Star className="h-4 w-4 mr-1" />
+                                    {appointment.patientHealthPlan}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <Badge
+                              className={getStatusColor(appointment.status, appointment.waitingList)}
+                            >
+                              {appointment.waitingList ? "Lista de Espera" : "Confirmado"}
+                            </Badge>
+                          </div>
+                          <div className="mt-3 flex space-x-2">
+                          {!appointment.waitingList && (
+  <Button
+    size="sm"
+    className="bg-green-600 hover:bg-green-700 text-white"
+    asChild
+  >
+    <Link href={`/doctor/completeAppointment/${appointment.id}`}>
+      Realizar Consulta
+    </Link>
+  </Button>
+)}
+
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-center py-8 text-gray-500">Nenhuma próxima consulta agendada</p>
                 )}
               </CardContent>
             </Card>

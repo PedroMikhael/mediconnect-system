@@ -48,7 +48,11 @@ export default function DoctorProfile() {
     "Psiquiatria",
     "Clínico Geral",
     "Endocrinologia",
+    "Oftalmologia",
+    "Urologia",
+    "Reumatologia",
     "Gastroenterologia",
+    "Pneumologia",
   ]
 
   const healthPlansOptions = [
