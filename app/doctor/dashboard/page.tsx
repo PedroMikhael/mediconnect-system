@@ -44,12 +44,15 @@ export default function DoctorDashboard() {
   const getStatusColor = (status: string, waitingList: boolean) => {
     if (waitingList) return "bg-yellow-100 text-yellow-800 border-yellow-200"
     switch (status.toLowerCase()) {
-      case "confirmado":
+      case "completed":
+        return "bg-gray-200 text-gray-800 border-gray-300"
+      case "scheduled":
         return "bg-green-100 text-green-800 border-green-200"
       case "pendente":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "cancelled":
       case "cancelado":
-        return "bg-red-100 text-red-800 border-red-200"
+        return "hidden"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
@@ -156,43 +159,47 @@ export default function DoctorDashboard() {
           )
         }
 
+        // Filtrar para mostrar só SCHEDULED e COMPLETED (ignorar CANCELLED)
+        const filterAppointments = (a: any) => {
+          const status = a.status?.toLowerCase()
+          return status === "scheduled" || status === "completed"
+        }
+
         const enriched = await Promise.all(
-          appointments.map(async (appointment: any) => {
-            let patientDob = null
-            let patientHealthPlan = "Não informado"
+          appointments
+            .filter(filterAppointments)
+            .map(async (appointment: any) => {
+              let patientDob = null
+              let patientHealthPlan = "Não informado"
 
-            try {
-              const patientRes = await fetch(`/api/patient/${appointment.patientId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-              if (patientRes.ok) {
-                const patientData = await patientRes.json()
-                patientDob = patientData.dateOfBirth
-                patientHealthPlan = patientData.healthPlan || "Não informado"
+              try {
+                const patientRes = await fetch(`/api/patient/${appointment.patientId}`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                })
+                if (patientRes.ok) {
+                  const patientData = await patientRes.json()
+                  patientDob = patientData.dateOfBirth
+                  patientHealthPlan = patientData.healthPlan || "Não informado"
+                }
+              } catch {}
+
+              return {
+                ...appointment,
+                patientAge: calculateAge(patientDob),
+                patientHealthPlan,
+                patientInitials: appointment.patientName
+                  ? appointment.patientName
+                    .split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()
+                  : "PN",
               }
-            } catch {}
-
-            return {
-              ...appointment,
-              patientAge: calculateAge(patientDob),
-              patientHealthPlan,
-              patientInitials: appointment.patientName
-                ? appointment.patientName
-                  .split(" ")
-                  .map((n: string) => n[0])
-                  .join("")
-                  .toUpperCase()
-                : "PN",
-            }
-          })
+            })
         )
 
-        const isActive = (a: any) =>
-          a.status?.toLowerCase() !== "cancelado" &&
-          a.status?.toLowerCase() !== "cancelled"
-
-        setTodayAppointments(enriched.filter((a) => isSameDate(a.date) && isActive(a)))
-        setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a)))
+        setTodayAppointments(enriched.filter((a) => isSameDate(a.date)))
+        setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date)))
       } catch (err) {
         console.error("Erro ao buscar consultas:", err)
       }
@@ -348,7 +355,11 @@ export default function DoctorDashboard() {
                             <Badge
                               className={getStatusColor(appointment.status, appointment.waitingList)}
                             >
-                              {appointment.waitingList ? "Lista de Espera" : "Confirmado"}
+                              {appointment.status?.toLowerCase() === "completed"
+                                ? "Consulta Realizada"
+                                : appointment.waitingList
+                                ? "Lista de Espera"
+                                : "Confirmado"}
                             </Badge>
                           </div>
                           <div className="mt-3 flex space-x-2">
@@ -358,10 +369,11 @@ export default function DoctorDashboard() {
                               const now = new Date()
                               const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}`)
 
-                              if (appointmentDateTime <= now) {
+                              // Só mostra botão para realizar consulta se status for SCHEDULED e o horário já passou
+                              if (appointment.status?.toLowerCase() === "scheduled" && appointmentDateTime <= now) {
                                 return (
                                   <Link
-                                    href={`/doctor/consultation/finalize/${appointment.id}y`}
+                                    href={`/doctor/consultation/finalize/${appointment.id}`}
                                     className="inline-block px-3 py-1 text-white bg-green-600 rounded hover:bg-green-700 text-sm"
                                   >
                                     Realizar Consulta
@@ -435,7 +447,11 @@ export default function DoctorDashboard() {
                             <Badge
                               className={getStatusColor(appointment.status, appointment.waitingList)}
                             >
-                              {appointment.waitingList ? "Lista de Espera" : "Confirmado"}
+                              {appointment.status?.toLowerCase() === "completed"
+                                ? "Consulta Realizada"
+                                : appointment.waitingList
+                                ? "Lista de Espera"
+                                : "Confirmado"}
                             </Badge>
                           </div>
                         </div>
