@@ -46,7 +46,7 @@ export default function RegisterPage() {
   })
 
   const specialties = [
-    "Cardiologia",
+     "Cardiologia",
     "Dermatologia",
     "Ortopedia",
     "Pediatria",

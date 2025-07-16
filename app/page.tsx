@@ -167,21 +167,7 @@ export default function HomePage() {
         <div className="container mx-auto text-center">
           <h3 className="text-3xl font-bold text-gray-900 mb-6">Encontre seu médico ideal</h3>
           <div className="max-w-2xl mx-auto">
-            <div className="relative">
-              <Search className="absolute left-4 top-4 h-6 w-6 text-gray-400" />
-              <Input
-                placeholder="Buscar médicos por nome ou especialidade..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 py-4 text-lg border-2 border-blue-200 focus:border-blue-500 rounded-xl"
-              />
-              <Button
-                className="absolute right-2 top-2 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900"
-                size="sm"
-              >
-                Buscar
-              </Button>
-            </div>
+            
           </div>
         </div>
       </section>

@@ -6,58 +6,14 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, MapPin, Star, Plus, Search, Bell, User, LogOut, Heart } from "lucide-react"
-import { id } from "date-fns/locale"
+import { Calendar, Clock, Star, Plus, Search, Bell, User, LogOut, Heart } from "lucide-react"
 
 export default function PatientDashboard() {
   const router = useRouter()
   const [patient, setPatient] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const [upcomingAppointments, setUpcomingAppointments] = useState([
-    {
-      id: 1,
-      doctor: "Dr. Ana Silva",
-      specialty: "Cardiologia",
-      date: "2024-01-15",
-      time: "14:30",
-      location: "Clínica São Paulo",
-      status: "confirmado",
-      doctorInitials: "AS",
-    },
-    {
-      id: 2,
-      doctor: "Dra. Maria Oliveira",
-      specialty: "Dermatologia",
-      date: "2024-01-20",
-      time: "10:00",
-      location: "Hospital Central",
-      status: "pendente",
-      doctorInitials: "MO",
-    },
-  ])
-
-  const [recentConsultations, setRecentConsultations] = useState([
-    {
-      id: 1,
-      doctor: "Dr. Carlos Santos",
-      specialty: "Ortopedia",
-      date: "2024-01-05",
-      rating: 5,
-      notes: "Consulta excelente, médico muito atencioso.",
-      doctorInitials: "CS",
-    },
-    {
-      id: 2,
-      doctor: "Dr. Pedro Lima",
-      specialty: "Clínico Geral",
-      date: "2023-12-20",
-      rating: 4,
-      notes: "Boa consulta, diagnóstico preciso.",
-      doctorInitials: "PL",
-    },
-  ])
+  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
 
   useEffect(() => {
     const userType = localStorage.getItem("userType")
@@ -75,11 +31,6 @@ export default function PatientDashboard() {
           setLoading(false)
           return
         }
-        if (!token) {
-          setError("Usuário não autenticado")
-          setLoading(false)
-          return
-        }
 
         const res = await fetch(`/api/patient/${id}`, {
           headers: {
@@ -88,36 +39,56 @@ export default function PatientDashboard() {
           },
         })
 
-        if (res.status === 404) {
-          setError("Paciente não encontrado. Por favor, faça login novamente.")
-          setLoading(false)
-          return
-        }
-
         if (!res.ok) {
-          throw new Error(`Erro ao buscar dados do paciente: ${res.statusText}`)
+          throw new Error("Erro ao buscar dados do paciente")
         }
 
         const data = await res.json()
 
+        const initials = data.name
+          ? data.name
+            .split(" ")
+            .map((n: string) => n[0])
+            .join("")
+            .toUpperCase()
+          : "NA"
+
         setPatient({
-          name: data.name || "Nome não informado",
-          birthDate: data.birthDate || "Não informado",
-          healthPlan: data.healthPlan || "Não informado",
-          email: data.email || "Não informado",
-          initials: data.name
-            ? data.name
-                .split(" ")
-                .map((n: string) => n[0])
-                .join("")
-                .toUpperCase()
-            : "NA",
+          ...data,
+          initials,
         })
 
+        fetchAppointments(id, token)
         setLoading(false)
       } catch (err: any) {
         setError(err.message || "Erro desconhecido")
         setLoading(false)
+      }
+    }
+
+    async function fetchAppointments(patientId: string, token: string) {
+      try {
+        const res = await fetch(`/api/appointments/patient/${patientId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (!res.ok) throw new Error("Erro ao buscar consultas")
+
+        const data = await res.json()
+
+        console.log("Consultas recebidas:", data)
+
+        const scheduledAppointments = data.filter(
+  (appointment: any) =>
+    appointment.status?.toLowerCase() === "scheduled"
+)
+
+setUpcomingAppointments(scheduledAppointments)
+
+
+      } catch (err) {
+        console.error("Erro ao buscar próximas consultas:", err)
       }
     }
 
@@ -131,35 +102,14 @@ export default function PatientDashboard() {
     router.push("/")
   }
 
-  // Calcula idade com base na data de nascimento
- function calculateAge(birthDateStr: string) {
-  if (!birthDateStr || birthDateStr === "Não informado") return "Não informado"
-  const birthDate = new Date(birthDateStr)
-  const today = new Date()
-
-  let age = today.getFullYear() - birthDate.getFullYear()
-  const monthDiff = today.getMonth() - birthDate.getMonth()
-  const dayDiff = today.getDate() - birthDate.getDate()
-
-  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-    age--
-  }
-
-  return age
-}
-
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmado":
-        return "bg-green-100 text-green-800 border-green-200"
-      case "pendente":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "cancelado":
-        return "bg-red-100 text-red-800 border-red-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
-    }
+  function calculateAge(dateOfBirth: string): number | string {
+    if (!dateOfBirth) return "Não informado"
+    const birth = new Date(dateOfBirth)
+    const today = new Date()
+    let age = today.getFullYear() - birth.getFullYear()
+    const m = today.getMonth() - birth.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+    return age
   }
 
   if (loading) return <p className="text-center mt-8">Carregando dados do paciente...</p>
@@ -168,7 +118,6 @@ export default function PatientDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
-      {/* Header */}
       <header className="bg-white/90 backdrop-blur-md shadow-lg sticky top-0 z-50 border-b border-blue-100">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -196,9 +145,79 @@ export default function PatientDashboard() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6">
+        {/* Welcome Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl p-8 text-white shadow-xl mb-8">
+          <h2 className="text-3xl font-bold mb-2">Bem-vindo, {patient.name.split(" ")[0]}!</h2>
+          <p className="text-blue-100">Gerencie suas consultas e acompanhe seu histórico médico.</p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-blue-100">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 rounded-full">
+                  <Search className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Buscar Médicos</h3>
+                  <p className="text-sm text-gray-600">Encontre especialistas</p>
+                </div>
+              </div>
+              <Button
+                className="w-full mt-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 shadow-lg"
+                asChild
+              >
+                <Link href="/patient/search">Buscar Agora</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-blue-200">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-3 rounded-full">
+                  <Plus className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Agendar Consulta</h3>
+                  <p className="text-sm text-gray-600">Marque uma consulta</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full mt-4 border-blue-300 text-blue-700 hover:bg-blue-50 bg-transparent"
+                asChild
+              >
+                <Link href="/patient/search">Agendar</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-blue-300">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="bg-gradient-to-r from-blue-400 to-blue-600 p-3 rounded-full">
+                  <Star className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Avaliar Consultas</h3>
+                  <p className="text-sm text-gray-600">Avalie suas consultas</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full mt-4 border-blue-400 text-blue-700 hover:bg-blue-50 bg-transparent"
+                asChild
+              >
+                <Link href="/patient/review">Avaliar</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
           <div className="lg:col-span-1">
             <Card className="shadow-xl border-2 border-blue-100">
               <CardHeader className="text-center bg-gradient-to-r from-blue-50 to-blue-100">
@@ -207,28 +226,21 @@ export default function PatientDashboard() {
                 </div>
                 <CardTitle className="text-gray-900">{patient.name}</CardTitle>
                 <CardDescription className="text-gray-600">
-                  {calculateAge(patient.birthDate)} anos
+                  {calculateAge(patient.dateOfBirth)} anos
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm font-medium text-gray-700">Plano de Saúde</p>
                   <Badge className="bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-200">
-                    {patient.healthPlan}
+                    {patient.healthPlan || "Não informado"}
                   </Badge>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-700">Email</p>
                   <p className="text-sm text-gray-600">{patient.email}</p>
                 </div>
-                <div>
-              
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent"
-                  asChild
-                >
+                <Button variant="outline" className="w-full border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent" asChild>
                   <Link href="/patient/profile">
                     <User className="h-4 w-4 mr-2" />
                     Editar Perfil
@@ -238,198 +250,115 @@ export default function PatientDashboard() {
             </Card>
           </div>
 
-          {/* Main Content */}
           <div className="lg:col-span-3 space-y-8">
-            {/* Welcome Section */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl p-8 text-white shadow-xl">
-              <h2 className="text-3xl font-bold mb-2">Bem-vindo, {patient.name.split(" ")[0]}!</h2>
-              <p className="text-blue-100">Gerencie suas consultas e acompanhe seu histórico médico.</p>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-blue-100">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 rounded-full">
-                      <Search className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Buscar Médicos</h3>
-                      <p className="text-sm text-gray-600">Encontre especialistas</p>
-                    </div>
-                  </div>
-                  <Button
-                    className="w-full mt-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 shadow-lg"
-                    asChild
-                  >
-                    <Link href="/patient/search">Buscar Agora</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-blue-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-3 rounded-full">
-                      <Plus className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Agendar Consulta</h3>
-                      <p className="text-sm text-gray-600">Marque uma consulta</p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="w-full mt-4 border-blue-300 text-blue-700 hover:bg-blue-50 bg-transparent"
-                    asChild
-                  >
-                    <Link href="/patient/search">Agendar</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Upcoming Appointments */}
             <Card className="shadow-xl border-2 border-blue-100">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
-                <CardTitle className="flex items-center text-gray-900">
-                  <Calendar className="h-5 w-5 mr-2 text-blue-600" />
-                  Próximas Consultas
-                </CardTitle>
-                <CardDescription>Suas consultas agendadas para os próximos dias</CardDescription>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center text-gray-900">
+                    <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+                    Próximas Consultas
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    asChild
+                  >
+                    
+                  </Button>
+                </div>
               </CardHeader>
+
               <CardContent>
                 {upcomingAppointments.length > 0 ? (
                   <div className="space-y-4">
-                    {upcomingAppointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="border-2 border-blue-100 rounded-lg p-4 hover:bg-blue-50 transition-colors"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center">
-                              <span className="text-white font-bold text-sm">{appointment.doctorInitials}</span>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <h4 className="font-semibold text-gray-900">{appointment.doctor}</h4>
-                                <Badge variant="outline" className="border-blue-200 text-blue-600">
-                                  {appointment.specialty}
-                                </Badge>
+                    {upcomingAppointments.map((appointment) => {
+                      const [year, month, day] = appointment.date.split("-")
+                      const formattedDate = `${day}/${month}/${year}`
+
+                      let formattedTime = "Horário inválido"
+
+                      if (typeof appointment.time === "string") {
+                        const [hourStr, minuteStr] = appointment.time.split(":")
+                        formattedTime = `${hourStr}:${minuteStr}`
+                      } else if (appointment.time && typeof appointment.time === "object") {
+                        const hour = String(appointment.time.hour).padStart(2, "0")
+                        const minute = String(appointment.time.minute).padStart(2, "0")
+                        formattedTime = `${hour}:${minute}`
+                      }
+
+                      const status = appointment.waitingList ? "Lista de Espera" : "Confirmado"
+                      const statusColor = appointment.waitingList
+                        ? "bg-yellow-100 text-yellow-800 border-yellow-200"
+                        : "bg-green-100 text-green-800 border-green-200"
+                      const doctorInitials = appointment.doctorName
+                        .split(" ")
+                        .map((n: string) => n[0])
+                        .join("")
+                        .toUpperCase()
+                      return (
+                        <div key={appointment.id} className="border-2 border-blue-100 rounded-lg p-4 hover:bg-blue-50 transition-colors">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">{doctorInitials}</span>
                               </div>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <div className="flex items-center">
-                                  <Calendar className="h-4 w-4 mr-1" />
-                                  {new Date(appointment.date).toLocaleDateString("pt-BR")}
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-2">
+                                  <h4 className="font-semibold text-gray-900">{appointment.doctorName}</h4>
                                 </div>
-                                <div className="flex items-center">
-                                  <Clock className="h-4 w-4 mr-1" />
-                                  {appointment.time}
-                                </div>
-                                <div className="flex items-center">
-                                  <MapPin className="h-4 w-4 mr-1" />
-                                  {appointment.location}
+                                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                  <div className="flex items-center">
+                                    <Calendar className="h-4 w-4 mr-1" />
+                                    {formattedDate}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <Clock className="h-4 w-4 mr-1" />
+                                    {formattedTime}
+                                  </div>
                                 </div>
                               </div>
                             </div>
+                            <Badge className={statusColor}>{status}</Badge>
                           </div>
-                          <Badge className={getStatusColor(appointment.status)}>{appointment.status}</Badge>
+
+                          <div className="mt-3 flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
+                              onClick={async () => {
+                                const token = localStorage.getItem("authToken")
+                                if (!token) return
+                                await fetch(`/api/appointments/${appointment.id}`, {
+                                  method: "DELETE",
+                                  headers: {
+                                    Authorization: `Bearer ${token}`,
+                                  },
+                                })
+                                setUpcomingAppointments((prev) => prev.filter((a) => a.id !== appointment.id))
+                              }}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
                         </div>
-                        <div className="mt-3 flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent"
-                          >
-                            Reagendar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
-                          >
-                            Cancelar
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8">
                     <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">Nenhuma consulta agendada</p>
-                    <Button
-                      className="mt-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900"
-                      asChild
-                    >
+                    <Button className="mt-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900" asChild>
                       <Link href="/patient/search">Agendar Primeira Consulta</Link>
                     </Button>
                   </div>
                 )}
               </CardContent>
             </Card>
-
-            {/* Recent Consultations */}
-            <Card className="shadow-xl border-2 border-blue-100">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
-                <CardTitle className="flex items-center text-gray-900">
-                  <Star className="h-5 w-5 mr-2 text-blue-600" />
-                  Consultas Recentes
-                </CardTitle>
-                <CardDescription>Histórico das suas últimas consultas</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {recentConsultations.length > 0 ? (
-                  <div className="space-y-4">
-                    {recentConsultations.map((consultation) => (
-                      <div key={consultation.id} className="border-2 border-blue-100 rounded-lg p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center">
-                              <span className="text-white font-bold text-sm">{consultation.doctorInitials}</span>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-900">{consultation.doctor}</h4>
-                              <p className="text-sm text-gray-600">{consultation.specialty}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm text-gray-600">
-                              {new Date(consultation.date).toLocaleDateString("pt-BR")}
-                            </p>
-                            <div className="flex items-center mt-1">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`h-4 w-4 ${
-                                    i < consultation.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        {consultation.notes && (
-                          <p className="text-sm text-gray-600 bg-gradient-to-r from-blue-50 to-blue-100 p-3 rounded-lg border border-blue-100">
-                            {consultation.notes}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Star className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">Nenhuma consulta realizada ainda</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

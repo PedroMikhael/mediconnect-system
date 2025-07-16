@@ -28,7 +28,17 @@ export default function PatientProfile() {
     healthPlan: "",
   })
 
-  const healthPlans = ["Unimed", "Bradesco Saúde", "SulAmérica", "Amil", "NotreDame", "Particular"]
+  const healthPlans = [
+    "Unimed",
+    "Bradesco Saúde",
+    "SulAmérica",
+    "Amil",
+    "NotreDame Intermédica",
+    "Hapvida",
+    "São Francisco Saúde",
+    "Porto Seguro Saúde",
+    "Não tenho plano",
+  ]
 
   useEffect(() => {
     const userType = localStorage.getItem("userType")

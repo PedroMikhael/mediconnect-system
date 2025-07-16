@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Search, Filter } from "lucide-react"
+import { Search, Filter, Star } from "lucide-react"
 import Link from "next/link"
 
 interface Doctor {
@@ -27,6 +27,7 @@ interface Doctor {
   speciality: string
   healthPlan: string
   description: string
+  averageRating: number
 }
 
 export default function SearchDoctors() {
@@ -37,7 +38,7 @@ export default function SearchDoctors() {
   const [loading, setLoading] = useState(false)
 
   const specialties = [
-    "Cardiologia",
+     "Cardiologia",
     "Dermatologia",
     "Ortopedia",
     "Pediatria",
@@ -45,6 +46,12 @@ export default function SearchDoctors() {
     "Neurologia",
     "Psiquiatria",
     "Clínico Geral",
+    "Endocrinologia",
+    "Oftalmologia",
+    "Urologia",
+    "Reumatologia",
+    "Gastroenterologia",
+    "Pneumologia",
   ]
 
   const healthPlans = [
@@ -52,9 +59,34 @@ export default function SearchDoctors() {
     "Bradesco Saúde",
     "SulAmérica",
     "Amil",
-    "NotreDame",
-    "Particular",
+    "NotreDame Intermédica",
+    "Hapvida",
+    "São Francisco Saúde",
+    "Porto Seguro Saúde",
+    "Não tenho plano",
   ]
+
+  // Componente para renderizar estrelas
+  const renderStars = (rating: number) => {
+    const fullStars = Math.floor(rating)
+    const hasHalfStar = rating % 1 >= 0.5
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0)
+
+    return (
+      <div className="flex items-center">
+        {[...Array(fullStars)].map((_, i) => (
+          <Star key={`full-${i}`} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+        ))}
+        {hasHalfStar && (
+          <Star key="half" className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+        )}
+        {[...Array(emptyStars)].map((_, i) => (
+          <Star key={`empty-${i}`} className="h-4 w-4 text-yellow-400" />
+        ))}
+        <span className="ml-1 text-sm font-medium text-gray-700">{rating.toFixed(1)}</span>
+      </div>
+    )
+  }
 
   useEffect(() => {
     async function fetchDoctors() {
@@ -222,6 +254,12 @@ export default function SearchDoctors() {
                               {doctor.speciality}
                             </span>
                           </div>
+                        </div>
+
+                        {/* Adicionando as estrelas de avaliação */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="font-medium">Avaliação: </span>
+                          {renderStars(doctor.averageRating || 0)}
                         </div>
                       </div>
 

@@ -48,7 +48,11 @@ export default function DoctorProfile() {
     "Psiquiatria",
     "Clínico Geral",
     "Endocrinologia",
+    "Oftalmologia",
+    "Urologia",
+    "Reumatologia",
     "Gastroenterologia",
+    "Pneumologia",
   ]
 
   const healthPlansOptions = [
@@ -56,8 +60,11 @@ export default function DoctorProfile() {
     "Bradesco Saúde",
     "SulAmérica",
     "Amil",
-    "NotreDame",
-    "Hapvida"
+    "NotreDame Intermédica",
+    "Hapvida",
+    "São Francisco Saúde",
+    "Porto Seguro Saúde",
+    "Não tenho plano",
   ]
 
   useEffect(() => {
