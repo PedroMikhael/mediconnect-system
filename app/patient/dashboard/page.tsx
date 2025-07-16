@@ -47,10 +47,10 @@ export default function PatientDashboard() {
 
         const initials = data.name
           ? data.name
-              .split(" ")
-              .map((n: string) => n[0])
-              .join("")
-              .toUpperCase()
+            .split(" ")
+            .map((n: string) => n[0])
+            .join("")
+            .toUpperCase()
           : "NA"
 
         setPatient({
@@ -74,28 +74,27 @@ export default function PatientDashboard() {
           },
         })
         if (!res.ok) throw new Error("Erro ao buscar consultas")
-    
+
         const data = await res.json()
-    
-        console.log("Consultas recebidas:", data) // 👈 LOG IMPORTANTE
-    
+
+        console.log("Consultas recebidas:", data)
+
         const activeAppointments = data.filter(
           (appointment: any) =>
             appointment.status &&
             appointment.status.toLowerCase() !== "cancelado"
         )
-    
-        console.log("Consultas filtradas:", activeAppointments) // 👈 VERIFICAÇÃO
-    
+
+        console.log("Consultas filtradas:", activeAppointments)
+
         setUpcomingAppointments(
           data.filter((appointment: any) => appointment.status?.toLowerCase() !== "cancelled")
         )
-        
+
       } catch (err) {
         console.error("Erro ao buscar próximas consultas:", err)
       }
     }
-    
 
     fetchPatient()
   }, [router])
@@ -150,7 +149,78 @@ export default function PatientDashboard() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6">
+        {/* Welcome Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl p-8 text-white shadow-xl mb-8">
+          <h2 className="text-3xl font-bold mb-2">Bem-vindo, {patient.name.split(" ")[0]}!</h2>
+          <p className="text-blue-100">Gerencie suas consultas e acompanhe seu histórico médico.</p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-blue-100">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 rounded-full">
+                  <Search className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Buscar Médicos</h3>
+                  <p className="text-sm text-gray-600">Encontre especialistas</p>
+                </div>
+              </div>
+              <Button
+                className="w-full mt-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 shadow-lg"
+                asChild
+              >
+                <Link href="/patient/search">Buscar Agora</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-blue-200">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-3 rounded-full">
+                  <Plus className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Agendar Consulta</h3>
+                  <p className="text-sm text-gray-600">Marque uma consulta</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full mt-4 border-blue-300 text-blue-700 hover:bg-blue-50 bg-transparent"
+                asChild
+              >
+                <Link href="/patient/search">Agendar</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-blue-300">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="bg-gradient-to-r from-blue-400 to-blue-600 p-3 rounded-full">
+                  <Star className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Avaliar Consultas</h3>
+                  <p className="text-sm text-gray-600">Avalie suas consultas</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full mt-4 border-blue-400 text-blue-700 hover:bg-blue-50 bg-transparent"
+                asChild
+              >
+                <Link href="/patient/review">Avaliar</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid lg:grid-cols-4 gap-8">
           <div className="lg:col-span-1">
             <Card className="shadow-xl border-2 border-blue-100">
@@ -186,24 +256,21 @@ export default function PatientDashboard() {
 
           <div className="lg:col-span-3 space-y-8">
             <Card className="shadow-xl border-2 border-blue-100">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
-  <div className="flex items-center justify-between">
-    <CardTitle className="flex items-center text-gray-900">
-      <Calendar className="h-5 w-5 mr-2 text-blue-600" />
-      Próximas Consultas
-    </CardTitle>
-    <Button
-      size="sm"
-      className="bg-blue-600 hover:bg-blue-700 text-white"
-      asChild
-    >
-      <Link href="/patient/search">
-        <Plus className="h-4 w-4 mr-1" />
-        Agendar Consulta
-      </Link>
-    </Button>
-  </div>
-</CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center text-gray-900">
+                    <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+                    Próximas Consultas
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    asChild
+                  >
+                    
+                  </Button>
+                </div>
+              </CardHeader>
 
               <CardContent>
                 {upcomingAppointments.length > 0 ? (
@@ -211,9 +278,9 @@ export default function PatientDashboard() {
                     {upcomingAppointments.map((appointment) => {
                       const [year, month, day] = appointment.date.split("-")
                       const formattedDate = `${day}/${month}/${year}`
-                      
+
                       let formattedTime = "Horário inválido"
-                      
+
                       if (typeof appointment.time === "string") {
                         const [hourStr, minuteStr] = appointment.time.split(":")
                         formattedTime = `${hourStr}:${minuteStr}`
@@ -222,7 +289,7 @@ export default function PatientDashboard() {
                         const minute = String(appointment.time.minute).padStart(2, "0")
                         formattedTime = `${hour}:${minute}`
                       }
-                      
+
                       const status = appointment.waitingList ? "Lista de Espera" : "Confirmado"
                       const statusColor = appointment.waitingList
                         ? "bg-yellow-100 text-yellow-800 border-yellow-200"
@@ -257,8 +324,8 @@ export default function PatientDashboard() {
                             </div>
                             <Badge className={statusColor}>{status}</Badge>
                           </div>
+
                           <div className="mt-3 flex space-x-2">
-                            
                             <Button
                               size="sm"
                               variant="outline"
@@ -295,7 +362,7 @@ export default function PatientDashboard() {
             </Card>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
