@@ -17,7 +17,6 @@ export default function DoctorDashboard() {
   const [todayAppointments, setTodayAppointments] = useState<any[]>([])
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
 
-  // Função para calcular idade
   function calculateAge(dateOfBirth: string | null): number | string {
     if (!dateOfBirth) return "N/I"
     const birth = new Date(dateOfBirth)
@@ -28,24 +27,20 @@ export default function DoctorDashboard() {
     return age
   }
 
-  // Formata hora string "HH:mm:ss" para "HH:mm"
   const formatTimeString = (timeStr: string | null) => {
     if (!timeStr) return "00:00"
     const [hour, minute] = timeStr.split(":")
     return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`
   }
 
-  // Formata data string ISO para "dd/mm/aaaa"
   const formatDateString = (dateStr: string | null) => {
     if (!dateStr) return "Data N/I"
     const parts = dateStr.split("-").map(Number)
     if (parts.length !== 3) return "Data Inválida"
-
     const dateObj = new Date(parts[0], parts[1] - 1, parts[2])
     return dateObj.toLocaleDateString("pt-BR")
   }
 
-  // Função para pegar cor do status
   const getStatusColor = (status: string, waitingList: boolean) => {
     if (waitingList) return "bg-yellow-100 text-yellow-800 border-yellow-200"
     switch (status.toLowerCase()) {
@@ -60,7 +55,6 @@ export default function DoctorDashboard() {
     }
   }
 
-  // Componente para renderizar estrelas
   const renderStars = (rating: number) => {
     const fullStars = Math.floor(rating)
     const hasHalfStar = rating % 1 >= 0.5
@@ -99,7 +93,6 @@ export default function DoctorDashboard() {
           return
         }
 
-        // Busca dados do médico
         const res = await fetch(`/api/doctor/${id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -177,7 +170,7 @@ export default function DoctorDashboard() {
                 patientDob = patientData.dateOfBirth
                 patientHealthPlan = patientData.healthPlan || "Não informado"
               }
-            } catch { }
+            } catch {}
 
             return {
               ...appointment,
@@ -200,7 +193,6 @@ export default function DoctorDashboard() {
 
         setTodayAppointments(enriched.filter((a) => isSameDate(a.date) && isActive(a)))
         setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a)))
-
       } catch (err) {
         console.error("Erro ao buscar consultas:", err)
       }
@@ -263,7 +255,6 @@ export default function DoctorDashboard() {
                 <CardDescription className="text-blue-600 font-medium">{doctor.specialty}</CardDescription>
 
                 <CardContent className="space-y-4">
-                  {/* Avaliação com estrelas */}
                   <div className="flex items-center justify-center">
                     {renderStars(doctor.rating)}
                   </div>
@@ -361,17 +352,24 @@ export default function DoctorDashboard() {
                             </Badge>
                           </div>
                           <div className="mt-3 flex space-x-2">
-                            {!appointment.waitingList && (
-                              <Button
-                                size="sm"
-                                className="bg-green-600 hover:bg-green-700 text-white"
-                                asChild
-                              >
-                                <Link href={`/doctor/completeAppointment/${appointment.id}`}>
-                                  Realizar Consulta
-                                </Link>
-                              </Button>
-                            )}
+                            {(() => {
+                              if (appointment.waitingList) return null
+
+                              const now = new Date()
+                              const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}`)
+
+                              if (appointmentDateTime <= now) {
+                                return (
+                                  <Link
+                                    href={`/doctor/consultation/finalize/${appointment.id}y`}
+                                    className="inline-block px-3 py-1 text-white bg-green-600 rounded hover:bg-green-700 text-sm"
+                                  >
+                                    Realizar Consulta
+                                  </Link>
+                                )
+                              }
+                              return null
+                            })()}
                           </div>
                         </div>
                       )
@@ -445,7 +443,7 @@ export default function DoctorDashboard() {
                     })}
                   </div>
                 ) : (
-                  <p className="text-center py-8 text-gray-500">Nenhuma próxima consulta agendada</p>
+                  <p className="text-center py-8 text-gray-500">Nenhuma consulta futura agendada</p>
                 )}
               </CardContent>
             </Card>
