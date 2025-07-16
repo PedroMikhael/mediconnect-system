@@ -87,49 +87,61 @@ export default function CompleteAppointmentPage() {
     fetchData()
   }, [id])
 
-  const handleSubmit = async () => {
-    if (!id) return
-    setSaving(true)
-    setError(null)
+ const handleSubmit = async () => {
+  if (!id) return
+  setSaving(true)
+  setError(null)
 
-    try {
-      const token = localStorage.getItem("authToken")
-      if (!token) throw new Error("Usuário não autenticado")
+  try {
+    const token = localStorage.getItem("authToken")
+    if (!token) throw new Error("Usuário não autenticado")
 
-      const body = {
-        consultationNotes: notes,
-        consultationFee: feeEditable ? (typeof fee === "number" && !isNaN(fee) ? fee : 0) : 0,
+    // Garantir número válido
+    let finalFee: number = 0
+
+    if (feeEditable) {
+      if (fee === "" || isNaN(Number(fee))) {
+        throw new Error("Informe um valor válido para a consulta.")
       }
-
-      const res = await fetch(`/api/appointment/${id}/complete`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      })
-
-      if (!res.ok) {
-        let message = `Erro ao salvar consulta. Status: ${res.status}`
-        try {
-          const data = await res.json()
-          console.error("Resposta da API (erro):", data)
-          message = data?.message || message
-        } catch {
-          console.error("Não foi possível ler JSON da resposta de erro")
-        }
-        throw new Error(message)
-      }
-
-      alert("Consulta finalizada com sucesso!")
-      router.push("/doctor/dashboard")
-    } catch (err: any) {
-      setError(err.message || "Erro desconhecido")
-    } finally {
-      setSaving(false)
+      finalFee = Number(fee)
     }
+
+    const body = {
+      consultationNotes: notes.trim(),
+      consultationFee: finalFee, // sempre envia um número, nunca null
+    }
+
+    const res = await fetch(`/api/appointments/${id}/complete`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (!res.ok) {
+      let message = `Erro ao salvar consulta. Status: ${res.status}`
+      try {
+        const data = await res.json()
+        console.error("Resposta da API (erro):", data)
+        message = data?.message || message
+      } catch {
+        console.error("Não foi possível ler JSON da resposta de erro")
+      }
+      throw new Error(message)
+    }
+
+    alert("Consulta finalizada com sucesso!")
+    router.push("/doctor/dashboard")
+  } catch (err: any) {
+    setError(err.message || "Erro desconhecido")
+  } finally {
+    setSaving(false)
   }
+}
+
+
 
   if (loading) {
     return (

@@ -79,17 +79,13 @@ export default function PatientDashboard() {
 
         console.log("Consultas recebidas:", data)
 
-        const activeAppointments = data.filter(
-          (appointment: any) =>
-            appointment.status &&
-            appointment.status.toLowerCase() !== "cancelado"
-        )
+        const scheduledAppointments = data.filter(
+  (appointment: any) =>
+    appointment.status?.toLowerCase() === "scheduled"
+)
 
-        console.log("Consultas filtradas:", activeAppointments)
+setUpcomingAppointments(scheduledAppointments)
 
-        setUpcomingAppointments(
-          data.filter((appointment: any) => appointment.status?.toLowerCase() !== "cancelled")
-        )
 
       } catch (err) {
         console.error("Erro ao buscar próximas consultas:", err)
