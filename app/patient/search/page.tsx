@@ -38,7 +38,7 @@ export default function SearchDoctors() {
   const [loading, setLoading] = useState(false)
 
   const specialties = [
-    "Cardiologia",
+     "Cardiologia",
     "Dermatologia",
     "Ortopedia",
     "Pediatria",
@@ -63,6 +63,7 @@ export default function SearchDoctors() {
     "Hapvida",
     "São Francisco Saúde",
     "Porto Seguro Saúde",
+    "Não tenho plano",
   ]
 
   // Componente para renderizar estrelas

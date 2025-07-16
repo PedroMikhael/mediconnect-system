@@ -56,7 +56,7 @@ export default function DoctorProfile() {
   ]
 
   const healthPlansOptions = [
-        "Unimed",
+    "Unimed",
     "Bradesco Saúde",
     "SulAmérica",
     "Amil",
@@ -64,6 +64,7 @@ export default function DoctorProfile() {
     "Hapvida",
     "São Francisco Saúde",
     "Porto Seguro Saúde",
+    "Não tenho plano",
   ]
 
   useEffect(() => {

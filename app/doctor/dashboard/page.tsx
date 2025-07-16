@@ -13,11 +13,12 @@ export default function DoctorDashboard() {
   const [doctor, setDoctor] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reviews, setReviews] = useState<any[]>([])
+
 
   const [todayAppointments, setTodayAppointments] = useState<any[]>([])
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
 
-  // Função para calcular idade
   function calculateAge(dateOfBirth: string | null): number | string {
     if (!dateOfBirth) return "N/I"
     const birth = new Date(dateOfBirth)
@@ -28,39 +29,37 @@ export default function DoctorDashboard() {
     return age
   }
 
-  // Formata hora string "HH:mm:ss" para "HH:mm"
   const formatTimeString = (timeStr: string | null) => {
     if (!timeStr) return "00:00"
     const [hour, minute] = timeStr.split(":")
     return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`
   }
 
-  // Formata data string ISO para "dd/mm/aaaa"
   const formatDateString = (dateStr: string | null) => {
     if (!dateStr) return "Data N/I"
     const parts = dateStr.split("-").map(Number)
     if (parts.length !== 3) return "Data Inválida"
-
     const dateObj = new Date(parts[0], parts[1] - 1, parts[2])
     return dateObj.toLocaleDateString("pt-BR")
   }
 
-  // Função para pegar cor do status
   const getStatusColor = (status: string, waitingList: boolean) => {
     if (waitingList) return "bg-yellow-100 text-yellow-800 border-yellow-200"
     switch (status.toLowerCase()) {
-      case "confirmado":
+      case "completed":
+        return "bg-gray-200 text-gray-800 border-gray-300"
+      case "scheduled":
         return "bg-green-100 text-green-800 border-green-200"
       case "pendente":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "cancelled":
       case "cancelado":
-        return "bg-red-100 text-red-800 border-red-200"
+        return "hidden"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
-  // Componente para renderizar estrelas
   const renderStars = (rating: number) => {
     const fullStars = Math.floor(rating)
     const hasHalfStar = rating % 1 >= 0.5
@@ -99,7 +98,6 @@ export default function DoctorDashboard() {
           return
         }
 
-        // Busca dados do médico
         const res = await fetch(`/api/doctor/${id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -136,12 +134,28 @@ export default function DoctorDashboard() {
         })
 
         await fetchAppointments(id, token)
+        await fetchReviews(id, token)
+
         setLoading(false)
       } catch (err: any) {
         setError(err.message || "Erro desconhecido")
         setLoading(false)
       }
     }
+
+    async function fetchReviews(doctorId: string, token: string) {
+  try {
+    const res = await fetch(`/api/reviews/doctor/${doctorId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error("Erro ao buscar avaliações")
+    const data = await res.json()
+    setReviews(data)
+  } catch (err) {
+    console.error("Erro ao buscar avaliações:", err)
+  }
+}
+
 
     async function fetchAppointments(doctorId: string, token: string) {
       try {
@@ -163,44 +177,47 @@ export default function DoctorDashboard() {
           )
         }
 
+        // Filtrar para mostrar só SCHEDULED e COMPLETED (ignorar CANCELLED)
+        const filterAppointments = (a: any) => {
+          const status = a.status?.toLowerCase()
+          return status === "scheduled" || status === "completed"
+        }
+
         const enriched = await Promise.all(
-          appointments.map(async (appointment: any) => {
-            let patientDob = null
-            let patientHealthPlan = "Não informado"
+          appointments
+            .filter(filterAppointments)
+            .map(async (appointment: any) => {
+              let patientDob = null
+              let patientHealthPlan = "Não informado"
 
-            try {
-              const patientRes = await fetch(`/api/patient/${appointment.patientId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-              if (patientRes.ok) {
-                const patientData = await patientRes.json()
-                patientDob = patientData.dateOfBirth
-                patientHealthPlan = patientData.healthPlan || "Não informado"
+              try {
+                const patientRes = await fetch(`/api/patient/${appointment.patientId}`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                })
+                if (patientRes.ok) {
+                  const patientData = await patientRes.json()
+                  patientDob = patientData.dateOfBirth
+                  patientHealthPlan = patientData.healthPlan || "Não informado"
+                }
+              } catch {}
+
+              return {
+                ...appointment,
+                patientAge: calculateAge(patientDob),
+                patientHealthPlan,
+                patientInitials: appointment.patientName
+                  ? appointment.patientName
+                    .split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()
+                  : "PN",
               }
-            } catch { }
-
-            return {
-              ...appointment,
-              patientAge: calculateAge(patientDob),
-              patientHealthPlan,
-              patientInitials: appointment.patientName
-                ? appointment.patientName
-                  .split(" ")
-                  .map((n: string) => n[0])
-                  .join("")
-                  .toUpperCase()
-                : "PN",
-            }
-          })
+            })
         )
 
-        const isActive = (a: any) =>
-          a.status?.toLowerCase() !== "cancelado" &&
-          a.status?.toLowerCase() !== "cancelled"
-
-        setTodayAppointments(enriched.filter((a) => isSameDate(a.date) && isActive(a)))
-        setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date) && isActive(a)))
-
+        setTodayAppointments(enriched.filter((a) => isSameDate(a.date)))
+        setUpcomingAppointments(enriched.filter((a) => !isSameDate(a.date)))
       } catch (err) {
         console.error("Erro ao buscar consultas:", err)
       }
@@ -263,7 +280,6 @@ export default function DoctorDashboard() {
                 <CardDescription className="text-blue-600 font-medium">{doctor.specialty}</CardDescription>
 
                 <CardContent className="space-y-4">
-                  {/* Avaliação com estrelas */}
                   <div className="flex items-center justify-center">
                     {renderStars(doctor.rating)}
                   </div>
@@ -357,21 +373,33 @@ export default function DoctorDashboard() {
                             <Badge
                               className={getStatusColor(appointment.status, appointment.waitingList)}
                             >
-                              {appointment.waitingList ? "Lista de Espera" : "Confirmado"}
+                              {appointment.status?.toLowerCase() === "completed"
+                                ? "Consulta Realizada"
+                                : appointment.waitingList
+                                ? "Lista de Espera"
+                                : "Confirmado"}
                             </Badge>
                           </div>
                           <div className="mt-3 flex space-x-2">
-                            {!appointment.waitingList && (
-                              <Button
-                                size="sm"
-                                className="bg-green-600 hover:bg-green-700 text-white"
-                                asChild
-                              >
-                                <Link href={`/doctor/completeAppointment/${appointment.id}`}>
-                                  Realizar Consulta
-                                </Link>
-                              </Button>
-                            )}
+                            {(() => {
+                              if (appointment.waitingList) return null
+
+                              const now = new Date()
+                              const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}`)
+
+                              // Só mostra botão para realizar consulta se status for SCHEDULED e o horário já passou
+                              if (appointment.status?.toLowerCase() === "scheduled" && appointmentDateTime <= now) {
+                                return (
+                                  <Link
+                                    href={`/doctor/consultation/finalize/${appointment.id}`}
+                                    className="inline-block px-3 py-1 text-white bg-green-600 rounded hover:bg-green-700 text-sm"
+                                  >
+                                    Realizar Consulta
+                                  </Link>
+                                )
+                              }
+                              return null
+                            })()}
                           </div>
                         </div>
                       )
@@ -437,7 +465,11 @@ export default function DoctorDashboard() {
                             <Badge
                               className={getStatusColor(appointment.status, appointment.waitingList)}
                             >
-                              {appointment.waitingList ? "Lista de Espera" : "Confirmado"}
+                              {appointment.status?.toLowerCase() === "completed"
+                                ? "Consulta Realizada"
+                                : appointment.waitingList
+                                ? "Lista de Espera"
+                                : "Confirmado"}
                             </Badge>
                           </div>
                         </div>
@@ -445,10 +477,53 @@ export default function DoctorDashboard() {
                     })}
                   </div>
                 ) : (
-                  <p className="text-center py-8 text-gray-500">Nenhuma próxima consulta agendada</p>
+                  <p className="text-center py-8 text-gray-500">Nenhuma consulta futura agendada</p>
                 )}
               </CardContent>
             </Card>
+            {/* Avaliações dos Pacientes */}
+<Card className="shadow-xl border-2 border-blue-100">
+  <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
+    <CardTitle className="flex items-center text-gray-900">
+      <Star className="h-5 w-5 mr-2 text-blue-600" />
+      Avaliações dos Pacientes
+    </CardTitle>
+    <CardDescription>Avaliações recebidas dos seus atendimentos</CardDescription>
+  </CardHeader>
+  <CardContent>
+    {reviews.length > 0 ? (
+      <div className="space-y-4">
+        {reviews.map((review) => (
+          <div
+            key={review.id}
+            className="border-2 border-blue-100 rounded-lg p-4 hover:bg-blue-50 transition-colors"
+          >
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="font-semibold text-gray-900">{review.patientName}</h4>
+              <div className="flex items-center">
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    className={`h-4 w-4 ${
+                      i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                    }`}
+                  />
+                ))}
+                <span className="ml-1 text-sm font-medium text-gray-700">
+                  {review.rating.toFixed(1)}
+                </span>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700">{review.comment || "Sem comentário."}</p>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p className="text-center py-8 text-gray-500">Nenhuma avaliação encontrada</p>
+    )}
+  </CardContent>
+</Card>
+
           </div>
         </div>
       </div>
